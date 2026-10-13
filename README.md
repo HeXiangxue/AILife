@@ -42,9 +42,9 @@ mysql -uroot -p你的密码 < sql/init.sql
 
 | 配置项 | 环境变量 | 默认值 |
 |--------|----------|--------|
-| MySQL 密码 | `MYSQL_PASSWORD` | `Jojo20030106` |
-| DashScope API Key | `DASHSCOPE_API_KEY` | 空（为空时使用本地 Mock 模型） |
-| 阿里云图像审核 AK/SK | `ALIYUN_AK` / `ALIYUN_SK` | 空（未配置时带图内容转人工复审） |
+| MySQL 密码 | `MYSQL_PASSWORD` | `*` |
+| DashScope API Key | `DASHSCOPE_API_KEY` | * |
+| 阿里云图像审核 AK/SK | `ALIYUN_AK` / `ALIYUN_SK` | * |
 
 > DashScope 使用 OpenAI 兼容模式（`https://dashscope.aliyuncs.com/compatible-mode/v1`，模型 `qwen-plus`）。
 > 不配置 API Key 也能跑通全流程：内置 Mock 模型会模拟工具选择与审核结果。
