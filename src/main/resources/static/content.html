@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社区内容 - AI 生活优选</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="logo">AI 生活优选</div>
+  <div class="links">
+    <a href="chat.html">智能问答</a>
+    <a href="content.html">社区内容</a>
+    <a href="admin.html">审核工作台</a>
+  </div>
+  <div class="user">
+    <span id="nickname"></span>
+    <a href="javascript:void(0)" onclick="logout()">退出</a>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- 发布动态 -->
+  <div class="card">
+    <h3>发布社区动态（发布后自动进入内容审核）</h3>
+    <div class="form-group">
+      <label>标题</label>
+      <input type="text" id="postTitle" placeholder="可选">
+    </div>
+    <div class="form-group">
+      <label>内容</label>
+      <textarea id="postContent" placeholder="分享你的本地生活体验，支持多行文本"></textarea>
+    </div>
+    <div class="form-group">
+      <label>图片 URL（可多个，用英文逗号分隔，可选）</label>
+      <input type="text" id="postImages" placeholder="例如：https://example.com/a.jpg,https://example.com/b.jpg">
+    </div>
+    <button class="btn" id="postBtn">发布动态</button>
+  </div>
+
+  <!-- 提交评价 -->
+  <div class="card">
+    <h3>提交商家评价（提交后自动进入内容审核）</h3>
+    <div class="form-group">
+      <label>选择商家</label>
+      <select id="reviewMerchant"></select>
+    </div>
+    <div class="form-group">
+      <label>评分</label>
+      <select id="reviewRating">
+        <option value="5">5 星</option>
+        <option value="4">4 星</option>
+        <option value="3">3 星</option>
+        <option value="2">2 星</option>
+        <option value="1">1 星</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>评价内容</label>
+      <textarea id="reviewContent" placeholder="说说这家店怎么样"></textarea>
+    </div>
+    <button class="btn" id="reviewBtn">提交评价</button>
+  </div>
+
+  <!-- 已通过动态 -->
+  <div class="card">
+    <h3>社区动态（已通过审核）</h3>
+    <div id="postList"></div>
+  </div>
+
+  <!-- 我的动态 -->
+  <div class="card">
+    <h3>我的动态与审核状态</h3>
+    <div id="myPosts"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('nickname').textContent = getUser()?.nickname || '';
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => (t.style.display = 'none'), 3000);
+  }
+
+  async function loadMerchants() {
+    try {
+      const merchants = await api('/api/merchants?limit=50');
+      const sel = document.getElementById('reviewMerchant');
+      sel.innerHTML = merchants.map(m =>
+        `<option value="${m.id}">${m.name}（${m.category}，评分${m.rating}）</option>`).join('');
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function loadPosts() {
+    try {
+      const posts = await api('/api/posts?status=1');
+      const box = document.getElementById('postList');
+      box.innerHTML = posts.length
+        ? posts.map(p => `<div class="item">
+            <div class="item-title">${p.title || '无标题'} <span class="tag ok">已通过</span></div>
+            <div class="item-meta">${new Date(p.createTime).toLocaleString()}</div>
+            <div>${p.content}</div>
+          </div>`).join('')
+        : '<p class="muted">暂无已通过的动态</p>';
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function loadMyPosts() {
+    try {
+      const posts = await api('/api/posts/mine');
+      const box = document.getElementById('myPosts');
+      box.innerHTML = posts.length
+        ? posts.map(p => {
+            const cls = p.status === 1 ? 'ok' : (p.status === 2 ? 'err' : (p.status === 3 ? 'warn' : ''));
+            return `<div class="item">
+              <div class="item-title">${p.title || '无标题'} <span class="tag ${cls}">${statusText(p.status)}</span></div>
+              <div class="item-meta">${new Date(p.createTime).toLocaleString()}</div>
+              <div>${p.content}</div>
+            </div>`;
+          }).join('')
+        : '<p class="muted">还没有发布过动态</p>';
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function submitPost() {
+    const title = document.getElementById('postTitle').value.trim();
+    const content = document.getElementById('postContent').value.trim();
+    if (!content) return toast('请输入内容');
+    const images = document.getElementById('postImages').value
+      .split(',').map(s => s.trim()).filter(s => s);
+    try {
+      const post = await api('/api/posts', { method: 'POST', body: { title, content, images } });
+      toast('发布成功，审核状态：' + statusText(post.status));
+      document.getElementById('postTitle').value = '';
+      document.getElementById('postContent').value = '';
+      document.getElementById('postImages').value = '';
+      loadMyPosts();
+      loadPosts();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function submitReview() {
+    const merchantId = Number(document.getElementById('reviewMerchant').value);
+    const rating = Number(document.getElementById('reviewRating').value);
+    const content = document.getElementById('reviewContent').value.trim();
+    if (!merchantId) return toast('请选择商家');
+    if (!content) return toast('请输入评价内容');
+    try {
+      const review = await api('/api/reviews', { method: 'POST', body: { merchantId, rating, content, images: [] } });
+      toast('评价提交成功，审核状态：' + statusText(review.status));
+      document.getElementById('reviewContent').value = '';
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  document.getElementById('postBtn').addEventListener('click', submitPost);
+  document.getElementById('reviewBtn').addEventListener('click', submitReview);
+  loadMerchants();
+  loadPosts();
+  loadMyPosts();
+</script>
+</body>
+</html>

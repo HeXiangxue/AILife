@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>审核工作台 - AI 生活优选</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="logo">AI 生活优选</div>
+  <div class="links">
+    <a href="chat.html">智能问答</a>
+    <a href="content.html">社区内容</a>
+    <a href="admin.html">审核工作台</a>
+  </div>
+  <div class="user">
+    <span id="nickname"></span>
+    <a href="javascript:void(0)" onclick="logout()">退出</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h3>内容审核 Agent 工作台</h3>
+    <div class="row">
+      <div class="form-group">
+        <label>状态筛选</label>
+        <select id="statusFilter">
+          <option value="MANUAL">待人工复审</option>
+          <option value="APPROVED">已通过</option>
+          <option value="REJECTED">已拒绝</option>
+          <option value="">全部</option>
+        </select>
+      </div>
+      <div style="flex:0">
+        <button class="btn" id="refreshBtn">刷新</button>
+      </div>
+    </div>
+    <p class="muted mt12" id="hint"></p>
+    <div id="auditList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+  requireLogin();
+  const user = getUser();
+  document.getElementById('nickname').textContent = user?.nickname || '';
+  if (user?.role !== 'ADMIN') {
+    document.body.innerHTML = '<div class="container"><div class="card"><h3>权限不足</h3><p class="muted">仅管理员可访问审核工作台，请使用 admin / admin123 登录。</p><a class="btn mt12" href="chat.html">返回问答</a></div></div>';
+    throw new Error('无权限');
+  }
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => (t.style.display = 'none'), 2500);
+  }
+
+  const STATUS_BADGE = {
+    MANUAL: '<span class="badge warn">待人工复审</span>',
+    APPROVED: '<span class="badge">已通过</span>',
+    REJECTED: '<span class="badge err">已拒绝</span>',
+  };
+  const RISK_BADGE = {
+    HIGH: '<span class="badge err">高风险</span>',
+    MEDIUM: '<span class="badge warn">中风险</span>',
+    LOW: '<span class="badge">低风险</span>',
+  };
+
+  async function load() {
+    const status = document.getElementById('statusFilter').value;
+    try {
+      const list = await api('/api/admin/audits' + (status ? '?status=' + status : ''));
+      document.getElementById('hint').textContent = '共 ' + list.length + ' 条记录';
+      const box = document.getElementById('auditList');
+      box.innerHTML = list.length
+        ? list.map(a => renderAudit(a)).join('')
+        : '<p class="muted">暂无记录</p>';
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  function renderAudit(a) {
+    const r = a.record;
+    const type = r.targetType === 'REVIEW' ? '评价' : '动态';
+    const pending = r.auditStatus === 'MANUAL';
+    return `<div class="item">
+      <div class="audit-row">
+        <div>
+          <span class="tag">${type}</span>
+          ${STATUS_BADGE[r.auditStatus] || ''}
+          ${RISK_BADGE[r.riskLevel] || ''}
+          <span class="muted">ID=${r.targetId}，作者：${a.authorName || '未知'}</span>
+        </div>
+        <div class="muted">${new Date(r.createTime).toLocaleString()}</div>
+      </div>
+      ${a.targetTitle ? '<div class="item-title">' + a.targetTitle + '</div>' : ''}
+      <div class="audit-content">${a.targetContent || ''}</div>
+      <hr>
+      <div class="muted">敏感词：${r.textSensitiveWords || '无'}</div>
+      <div class="muted">图像审核：${r.imageResult || '无图片'}</div>
+      <div class="muted">信誉校验：${r.reputationResult || '-'}</div>
+      <div class="muted">LLM 审核：${r.llmResult || '-'}</div>
+      ${r.reviewComment ? '<div class="muted">复审意见：' + r.reviewComment + '</div>' : ''}
+      ${pending ? `
+        <div class="row mt12">
+          <input type="text" id="comment_${r.id}" placeholder="复审意见（可选）">
+          <button class="btn btn-sm" onclick="review(${r.id},'APPROVED')">通过</button>
+          <button class="btn btn-sm btn-danger" onclick="review(${r.id},'REJECTED')">拒绝</button>
+        </div>` : ''}
+    </div>`;
+  }
+
+  async function review(auditId, decision) {
+    const comment = document.getElementById('comment_' + auditId)?.value || '';
+    if (!confirm('确认将该记录标记为「' + (decision === 'APPROVED' ? '通过' : '拒绝') + '」？')) return;
+    try {
+      await api('/api/admin/audits/' + auditId + '/review', {
+        method: 'POST',
+        body: { decision, comment },
+      });
+      toast('复审完成');
+      load();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>

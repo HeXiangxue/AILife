@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能问答 - AI 生活优选</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="logo">AI 生活优选</div>
+  <div class="links">
+    <a href="chat.html">智能问答</a>
+    <a href="content.html">社区内容</a>
+    <a href="admin.html">审核工作台</a>
+  </div>
+  <div class="user">
+    <span id="nickname"></span>
+    <a href="javascript:void(0)" onclick="logout()">退出</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="card">
+    <h3>智能问答 Agent <span class="muted">（商家搜索 / 评价查询 / 附近推荐，Agent 自主选择工具）</span></h3>
+    <div class="form-group row">
+      <div>
+        <label>经度（默认北京）</label>
+        <input type="number" step="any" id="longitude" value="116.397428">
+      </div>
+      <div>
+        <label>纬度（默认北京）</label>
+        <input type="number" step="any" id="latitude" value="39.90923">
+      </div>
+    </div>
+    <div class="chat-box" id="chatBox"></div>
+    <div class="chat-input">
+      <input type="text" id="question" placeholder="试试：推荐附近的火锅店 / 全聚德烤鸭店的评价怎么样 / 人均 50 以内的餐厅">
+      <button class="btn" id="sendBtn">发送</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('nickname').textContent = getUser()?.nickname || '';
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => (t.style.display = 'none'), 2500);
+  }
+
+  function appendMsg(role, text) {
+    const box = document.getElementById('chatBox');
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    div.appendChild(bubble);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function welcome() {
+    appendMsg('agent', '您好，我是 AI 生活优选助手。您可以问我：\n- 推荐附近的火锅店\n- 评分 4.5 以上人均 100 以内的餐厅\n- 全聚德烤鸭店的评价怎么样');
+  }
+  welcome();
+
+  async function send() {
+    const question = document.getElementById('question').value.trim();
+    if (!question) return;
+    appendMsg('user', question);
+    document.getElementById('question').value = '';
+    document.getElementById('sendBtn').disabled = true;
+    try {
+      const data = await api('/api/agent/chat', {
+        method: 'POST',
+        body: {
+          question,
+          longitude: parseFloat(document.getElementById('longitude').value),
+          latitude: parseFloat(document.getElementById('latitude').value),
+        },
+      });
+      appendMsg('agent', data.answer);
+    } catch (err) {
+      appendMsg('agent', '出错了：' + err.message);
+    } finally {
+      document.getElementById('sendBtn').disabled = false;
+    }
+  }
+
+  document.getElementById('sendBtn').addEventListener('click', send);
+  document.getElementById('question').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') send();
+  });
+</script>
+</body>
+</html>

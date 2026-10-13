@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ai-life
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/ai_life?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:Jojo20030106}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:Jojo20030106}
+      database: 0
+      timeout: 3s
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.ailife.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+# ============ 业务自定义配置 ============
+ailife:
+  jwt:
+    # HS256 密钥，长度必须 >= 32 字节，生产环境务必修改
+    secret: ${JWT_SECRET:ai-life-platform-jwt-secret-change-me-0123456789abcdef}
+    expire-hours: 24
+  # 通义千问 DashScope（OpenAI 兼容模式）
+  dashscope:
+    api-key: ${DASHSCOPE_API_KEY:}
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-plus
+  # 图像审核（阿里云内容安全）
+  image-review:
+    enabled: ${IMAGE_REVIEW_ENABLED:true}
+    aliyun:
+      access-key-id: ${ALIYUN_AK:}
+      access-key-secret: ${ALIYUN_SK:}
+      region-id: cn-shanghai
+  # 审核策略
+  review:
+    reputation-low-threshold: 60   # 低于该信誉分的内容升级为人工复审
+    manual-confidence-threshold: 0.8  # LLM 置信度低于该值转人工复审
+
+logging:
+  level:
+    com.ailife: info
